@@ -438,27 +438,36 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             try {
                 int strategy;
                 try {
+                    //入参selectNowSupplier： 重写于本方法，selectNow返回就绪状态的channel数量
+                    //入参hasTask()： 判断SingleThreadEventLoop的tailTask与SingleThreadEventExecutor中的taskQueue是否为空,前置判断当前线程是否为eventloop线程
+                    //计算逻辑：1.有任务->返回selectNow的数量(>=0);2.没任务->返回SELECT状态(-1)
                     strategy = selectStrategy.calculateStrategy(selectNowSupplier, hasTasks());
                     switch (strategy) {
                     case SelectStrategy.CONTINUE:
                         continue;
-
+                    //nio没有该状态
                     case SelectStrategy.BUSY_WAIT:
                         // fall-through to SELECT since the busy-wait is not supported with NIO
 
                     case SelectStrategy.SELECT:
+                        //返回：即将要执行的定时任务的时间戳
                         long curDeadlineNanos = nextScheduledTaskDeadlineNanos();
                         if (curDeadlineNanos == -1L) {
+                            //没有需要执行的定时任务(Long.MAX_VALUE)
                             curDeadlineNanos = NONE; // nothing on the calendar
                         }
+                        //记录时间戳
                         nextWakeupNanos.set(curDeadlineNanos);
                         try {
+                            //tailQueue跟taskQueue中没任务
                             if (!hasTasks()) {
+                                //阻塞轮询，返回就绪时间数
                                 strategy = select(curDeadlineNanos);
                             }
                         } finally {
                             // This update is just to help block unnecessary selector wakeups
                             // so use of lazySet is ok (no race condition)
+                            //仅仅帮助唤醒停止不必要的轮询，无竟态发生
                             nextWakeupNanos.lazySet(AWAKE);
                         }
                         // fall through
@@ -480,6 +489,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 boolean ranTasks;
                 if (ioRatio == 100) {
                     try {
+                        //有就绪事件
                         if (strategy > 0) {
                             processSelectedKeys();
                         }
@@ -807,9 +817,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
     private int select(long deadlineNanos) throws IOException {
         if (deadlineNanos == NONE) {
+            //没有定时任务执行，阻塞轮询
             return selector.select();
         }
         // Timeout will only be 0 if deadline is within 5 microsecs
+        //计算可以阻塞轮询的时间,然后把这些时间花光
         long timeoutMillis = deadlineToDelayNanos(deadlineNanos + 995000L) / 1000000L;
         return timeoutMillis <= 0 ? selector.selectNow() : selector.select(timeoutMillis);
     }
