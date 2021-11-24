@@ -293,6 +293,8 @@ static jint netty_epoll_native_epollWait0(JNIEnv* env, jclass clazz, jint efd, j
 static inline void cpu_relax() {
 #if defined(__x86_64__)
     asm volatile("pause\n": : :"memory");
+#elif defined(__aarch64__)
+    asm volatile("isb\n": : :"memory");
 #endif
 }
 
@@ -727,6 +729,8 @@ error:
 
 // JNI Method Registration Table End
 
+// IMPORTANT: If you add any NETTY_JNI_UTIL_LOAD_CLASS or NETTY_JNI_UTIL_FIND_CLASS calls you also need to update
+//            Native to reflect that.
 static jint netty_epoll_native_JNI_OnLoad(JNIEnv* env, const char* packagePrefix) {
     int ret = JNI_ERR;
     int staticallyRegistered = 0;
